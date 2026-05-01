@@ -1,11 +1,11 @@
-Next Word Predictor
-========================================================
-author: Luis Ruiz
-date: May 2026
-autosize: true
+---
+title: "Next Word Predictor"
+author: "Luis Ruiz"
+date: "May 2026"
+output: ioslides_presentation
+---
 
-The Problem
-========================================================
+## The Problem
 
 Typing on a phone is slow and error-prone.
 
@@ -15,8 +15,7 @@ A text prediction model can suggest the next word before the user finishes typin
 - Over 4 million lines, ~100 million words
 - **Goal**: given a short phrase, predict the most likely next word
 
-The Algorithm
-========================================================
+## The Algorithm
 
 **N-gram model with Stupid Backoff**
 
@@ -28,8 +27,7 @@ The Algorithm
 
 Pruning: n-grams with frequency < 2 are discarded. Only the top 5 predictions per prefix are kept. This keeps the model small and fast.
 
-The App
-========================================================
+## The App
 
 **How to use it**
 
@@ -42,8 +40,7 @@ The model is pre-built and stored as a single file loaded at startup. All lookup
 
 **App**: https://luisruizc.shinyapps.io/shiny_app/
 
-Why It Works
-========================================================
+## Why It Works
 
 - Simple is fast: no neural network, no GPU required
 - The SwiftKey corpus covers natural everyday English well
