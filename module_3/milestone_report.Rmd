@@ -1,0 +1,182 @@
+---
+title: "Data Science Capstone - Milestone Report"
+author: "Luis Ruiz"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+## Overview
+
+This report presents an exploratory analysis of the Coursera SwiftKey dataset used for building a text prediction model. The dataset consists of three files in English: blogs, news, and Twitter. The goal is to understand the basic structure and content of the data before building the prediction algorithm and Shiny app.
+
+---
+
+## 1. Basic File Statistics
+
+```{r load_data}
+library(stringi)
+library(ggplot2)
+library(knitr)
+
+set.seed(42)
+
+blogs_path   <- "final/en_US/en_US.blogs.txt"
+news_path    <- "final/en_US/en_US.news.txt"
+twitter_path <- "final/en_US/en_US.twitter.txt"
+
+blogs   <- readLines(blogs_path,   encoding = "UTF-8", skipNul = TRUE)
+news    <- readLines(news_path,    encoding = "UTF-8", skipNul = TRUE)
+twitter <- readLines(twitter_path, encoding = "UTF-8", skipNul = TRUE)
+```
+
+```{r summary_table}
+file_sizes <- c(
+  round(file.info(blogs_path)$size   / 1e6, 1),
+  round(file.info(news_path)$size    / 1e6, 1),
+  round(file.info(twitter_path)$size / 1e6, 1)
+)
+
+line_counts <- c(length(blogs), length(news), length(twitter))
+
+word_counts <- c(
+  sum(stri_count_words(blogs)),
+  sum(stri_count_words(news)),
+  sum(stri_count_words(twitter))
+)
+
+avg_words <- round(word_counts / line_counts, 1)
+
+summary_df <- data.frame(
+  File        = c("Blogs", "News", "Twitter"),
+  `Size (MB)` = file_sizes,
+  Lines       = formatC(line_counts, format = "d", big.mark = ","),
+  `Total Words` = formatC(word_counts, format = "d", big.mark = ","),
+  `Avg Words/Line` = avg_words,
+  check.names = FALSE
+)
+
+kable(summary_df, align = "lrrrr", caption = "Table 1: Summary statistics of the three source files")
+```
+
+The three files together contain over 4 million lines and roughly 100 million words. Twitter entries are the shortest on average (~13 words per line), while blogs are the longest (~42 words per entry).
+
+---
+
+## 2. Sampling
+
+Given the file sizes, a random sample of 1% per file is used for the exploratory analysis to keep computation manageable.
+
+```{r sampling}
+sample_pct <- 0.01
+
+blogs_s   <- sample(blogs,   size = floor(length(blogs)   * sample_pct))
+news_s    <- sample(news,    size = floor(length(news)    * sample_pct))
+twitter_s <- sample(twitter, size = floor(length(twitter) * sample_pct))
+
+all_text <- c(blogs_s, news_s, twitter_s)
+```
+
+---
+
+## 3. Word Length Distribution
+
+```{r word_length_hist, fig.width=8, fig.height=4}
+word_lengths <- stri_length(unlist(stri_extract_all_words(all_text)))
+word_lengths <- word_lengths[!is.na(word_lengths)]
+
+ggplot(data.frame(len = word_lengths), aes(x = len)) +
+  geom_histogram(binwidth = 1, fill = "#2c7bb6", color = "white", alpha = 0.85) +
+  scale_x_continuous(limits = c(1, 20), breaks = 1:20) +
+  labs(
+    title = "Distribution of Word Lengths (combined sample)",
+    x     = "Word length (characters)",
+    y     = "Frequency"
+  ) +
+  theme_minimal(base_size = 13)
+```
+
+Most words are between 3 and 8 characters long, with a peak around 3-4 characters, consistent with the high frequency of short function words in English.
+
+---
+
+## 4. Line Length Distribution by Source
+
+```{r line_length_hist, fig.width=8, fig.height=4}
+df_lines <- data.frame(
+  words  = c(
+    stri_count_words(blogs_s),
+    stri_count_words(news_s),
+    stri_count_words(twitter_s)
+  ),
+  source = c(
+    rep("Blogs",   length(blogs_s)),
+    rep("News",    length(news_s)),
+    rep("Twitter", length(twitter_s))
+  )
+)
+
+ggplot(df_lines, aes(x = words, fill = source)) +
+  geom_histogram(binwidth = 5, color = "white", alpha = 0.8, position = "identity") +
+  facet_wrap(~source, scales = "free_y") +
+  labs(
+    title = "Words per Line by Source",
+    x     = "Words per line",
+    y     = "Count"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none") +
+  scale_fill_manual(values = c("Blogs" = "#d7191c", "News" = "#fdae61", "Twitter" = "#2c7bb6"))
+```
+
+Twitter entries cluster tightly below 30 words due to the character limit. News and blog entries show broader distributions, with some blog posts exceeding 200 words per paragraph.
+
+---
+
+## 5. Top Words (after removing stopwords)
+
+```{r top_words, fig.width=8, fig.height=5}
+sw <- tm::stopwords("en")
+
+words_raw <- unlist(strsplit(tolower(paste(all_text, collapse = " ")), "[^a-z']+"))
+words_raw <- words_raw[nchar(words_raw) > 1 & !words_raw %in% sw]
+
+freq_table <- sort(table(words_raw), decreasing = TRUE)
+top30 <- data.frame(
+  word = names(freq_table[1:30]),
+  freq = as.integer(freq_table[1:30])
+)
+
+ggplot(top30, aes(x = reorder(word, freq), y = freq)) +
+  geom_bar(stat = "identity", fill = "#2c7bb6", alpha = 0.85) +
+  coord_flip() +
+  labs(
+    title = "Top 30 Most Frequent Words (stopwords removed)",
+    x     = "Word",
+    y     = "Frequency"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+---
+
+## 6. Plan for the Prediction Algorithm and Shiny App
+
+**Algorithm:**  
+The prediction model will use an **n-gram language model** (unigrams, bigrams, trigrams). The approach is:
+
+1. Build frequency tables of n-grams from the full cleaned corpus.
+2. Use a **backoff strategy** (Katz backoff or Stupid Backoff): if a trigram is not found, fall back to bigram, then unigram.
+3. Return the top-3 most likely next words given the user's input.
+
+**Shiny App:**  
+A simple interface where the user types a partial sentence and the app suggests the next word in real time. The model will be pre-computed and stored as an `.rds` file for fast lookup.
+
+**Key considerations:**
+
+- Profanity filtering will be applied during corpus cleaning.
+- Low-frequency n-grams (count < 3) will be pruned to reduce memory footprint.
+- The app must respond in under 100ms, so efficiency in the lookup table is a priority.
