@@ -1,0 +1,57 @@
+Next Word Predictor
+========================================================
+author: Luis Ruiz
+date: May 2026
+autosize: true
+
+The Problem
+========================================================
+
+Typing on a phone is slow and error-prone.
+
+A text prediction model can suggest the next word before the user finishes typing, reducing effort and mistakes.
+
+- **Data**: 3 English corpora from SwiftKey — blogs, news, Twitter
+- Over 4 million lines, ~100 million words
+- **Goal**: given a short phrase, predict the most likely next word
+
+The Algorithm
+========================================================
+
+**N-gram model with Stupid Backoff**
+
+1. Sample 3% of each corpus and clean the text
+2. Build frequency tables of bigrams (2-word sequences) and trigrams (3-word sequences)
+3. Given user input, match the last 2 words against the trigram table
+4. If no match found, fall back to the last word in the bigram table
+5. If still no match, return the most common words overall
+
+Pruning: n-grams with frequency < 2 are discarded. Only the top 5 predictions per prefix are kept. This keeps the model small and fast.
+
+The App
+========================================================
+
+**How to use it**
+
+1. Open the app at the link below
+2. Type any phrase in English in the text box
+3. Click **Predict**
+4. The top 3 suggested next words appear instantly
+
+The model is pre-built and stored as a single file loaded at startup. All lookups use named R lists — O(1) access with no database needed.
+
+**App**: https://luisruizc.shinyapps.io/shiny_app/
+
+Why It Works
+========================================================
+
+- Simple is fast: no neural network, no GPU required
+- The SwiftKey corpus covers natural everyday English well
+- Backoff ensures a prediction is always returned, even for unknown words
+- Responds in under 50ms for any input
+
+**Limitations and next steps**
+
+- Larger training sample would improve coverage
+- Adding 4-grams would improve accuracy for longer phrases
+- Kneser-Ney smoothing for better probability estimates
